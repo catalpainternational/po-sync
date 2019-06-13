@@ -1,17 +1,14 @@
 import argparse
+import logging
+import logging.config
 import os
 import shutil
-from io import StringIO
+import tempfile
 
 from sh import git, msgmerge, rsync
 
-import logging
-import logging.config
-
-import tempfile
-
-logging.config.fileConfig('logging.conf')
-logger = logging.getLogger('translations')
+logging.config.fileConfig("logging.conf")
+logger = logging.getLogger("translations")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("repo", help="path to your github repo", type=str)
@@ -45,16 +42,17 @@ def get_directory(branch):
     """
     return os.path.join(tempdir, branch)
 
+
 def git_checkout(repo, branch):
     """
     Switch to a directory, checkout, return
     """
-    logger.info('Git checkout %s@%s', repo, branch)
+    logger.info("Git checkout %s@%s", repo, branch)
     cwd = os.getcwd()
     os.chdir(repo)
     gco(branch)
     os.chdir(cwd)
-    
+
 
 def fetch_po_files(repo, branch):
     """
@@ -62,14 +60,11 @@ def fetch_po_files(repo, branch):
     """
     dest = get_directory(branch)
     git_checkout(repo, branch)
-    logger.info('rsync po files from %s@%s -> %s', repo, branch, dest)
+    logger.info("rsync po files from %s@%s -> %s", repo, branch, dest)
     rsyncpo(repo, dest)
-    
 
 
-def put_po_files(
-    repo, branch
-):
+def put_po_files(repo, branch):
     git_checkout(repo, branch)
 
     dest = get_directory(branch)
@@ -82,24 +77,25 @@ def sort_po_tree(branch: str = "master"):
     for root, _, files in os.walk(directory):
         for name in files:
             po_path = os.path.join(root, name)
-            if name.endswith('~'):
+            if name.endswith("~"):
                 continue
             msgsort("--update", po_path, po_path)
 
 
 def merge_po_trees(def_branch: str = "akhror", ref_branch: str = "master"):
-    
+
     for root, _, files in os.walk(get_directory(def_branch)):
         for name in files:
             def_po = os.path.join(root, name)
             ref_po = os.path.join(get_directory(ref_branch), root, name)
-            if def_po.endswith('~'):
+            if def_po.endswith("~"):
                 continue
             cmd = msgsort.bake("-o", ref_po + "_out.po", def_po, ref_po)
             cmd()
             # Replace the original file with the merged one
             os.remove(ref_po)
             shutil.move(ref_po + "_out.po", ref_po)
+
 
 fetch_po_files(args.repo, args.mergefrom)
 fetch_po_files(args.repo, args.mergeto)
@@ -108,7 +104,9 @@ sort_po_tree(args.mergeto)
 merge_po_trees(args.mergefrom, args.mergeto)
 put_po_files(args.repo, args.mergeto)
 
-logger.info('Removing temp files')
-logger.info(f'Your repo at {args.repo}@{args.mergeto} ought to have translations synced from {args.repo}@{args.mergefrom}')
+logger.info("Removing temp files")
+logger.info(
+    f"Your repo at {args.repo}@{args.mergeto} ought to have translations synced from {args.repo}@{args.mergefrom}"
+)
 
 shutil.rmtree(tempdir)
